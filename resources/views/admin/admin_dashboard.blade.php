@@ -208,7 +208,7 @@
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         {{ $submission->created_at->format('Y-m-d') }}</td>
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <form action="{{ route('admin.submissions.updateStatus', $submission) }}"
+                                        <form action="{{ route('admin.submission.updateStatus', $submission) }}"
                                             method="POST" class="inline" id="status-form-{{ $submission->id }}">
                                             @csrf
                                             @method('PATCH')
@@ -250,9 +250,13 @@
                                             </select>
                                         </form>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                                         <button onclick="showDetailModal({{ json_encode($submission) }})"
                                             class="text-indigo-600 hover:text-indigo-900">Detail</button>
+                                        @if ($submission->status === 'Diterima')
+                                            <a href="{{ route('admin.pembayaran.upload', ['surat_id' => $submission->id]) }}"
+                                                class="text-blue-600 hover:text-blue-900">Upload Billing</a>
+                                        @endif
                                     </td>
                                 </tr>
                             @empty
@@ -739,7 +743,7 @@
             const verifyForm = document.getElementById('verifyForm');
 
             // Asumsi rute admin.submissions.updateStatus sudah terdefinisi di routes/web.php
-            const updateRoute = '{{ route('admin.submissions.updateStatus', ':id') }}';
+            const updateRoute = '{{ route('admin.submission.updateStatus', ':id') }}';
 
             // Set action formulir secara dinamis dengan ID submission yang benar
             rejectForm.action = updateRoute.replace(':id', submission.id);
