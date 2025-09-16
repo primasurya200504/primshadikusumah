@@ -1,0 +1,22 @@
+* text=auto eol=lf
+
+# Explicitly set line endings for specific file types to prevent issues
+*.php   text eol=lf
+*.js    text eol=lf
+*.css   text eol=lf
+*.html  text eol=lf
+*.blade.php text eol=lf
+
+# Binary files should not have line endings changed
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.pdf   binary
+*.docx  binary
+*.doc   binary
+*.zip   binary
+
+/.github export-ignore
+CHANGELOG.md export-ignore
+.styleci.yml export-ignore
