@@ -38,7 +38,8 @@ Route::middleware(['auth', 'verified'])->prefix('user')->name('user.')->group(fu
 Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
 
-    Route::patch('/submissions/{submission}/update-status', [AdminController::class, 'updateStatus'])->name('submissions.updateStatus');
+    // Fixed route names to match what's used in the blade template
+    Route::patch('/submission/{submission}/update-status', [AdminController::class, 'updateStatus'])->name('submission.updateStatus');
     Route::patch('/submissions/{submission}/update-payment-status', [AdminController::class, 'updatePaymentStatus'])->name('submissions.updatePaymentStatus');
 
     Route::resource('guidelines', GuidelineController::class)->only(['index', 'store', 'update', 'destroy'])->names('guidelines');
