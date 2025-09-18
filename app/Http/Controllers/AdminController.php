@@ -6,8 +6,11 @@ use App\Models\Submission;
 use App\Models\User;
 use App\Models\Guideline;
 use App\Models\Pembayaran;
+use App\Models\Archive;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Response;
 
 class AdminController extends Controller
 {
@@ -43,7 +46,15 @@ class AdminController extends Controller
 
         // Update statistik pembayaran menggunakan model Pembayaran
         $pendingPayments = Pembayaran::where('status', 'Menunggu Pembayaran')->count();
-        $paidPayments = Pembayaran::where('status', 'Dibayar')->count(); // Tambahan untuk yang sudah dibayar
+        $paidPayments = Pembayaran::where('status', 'Dibayar')->count();
+
+        // Archive statistics - tambahkan ini
+        $archivedSubmissions = Archive::count();
+        $completedArchives = Archive::where('status', 'Diterima')->count();
+        $rejectedArchives = Archive::where('status', 'Ditolak')->count();
+        $monthlyArchives = Archive::whereMonth('archived_at', now()->month)
+            ->whereYear('archived_at', now()->year)
+            ->count();
 
         // Debug statistik
         Log::info("Debug Stats - Pending Payments: " . $pendingPayments);
@@ -56,30 +67,12 @@ class AdminController extends Controller
             'totalSubmissions',
             'pendingSubmissions',
             'pendingPayments',
-            'paidPayments' // Tambahkan ini
+            'paidPayments',
+            'archivedSubmissions',
+            'completedArchives',
+            'rejectedArchives',
+            'monthlyArchives'
         ));
-    }
-
-    /**
-     * Tambahkan method untuk debugging pembayaran
-     */
-    public function debugPayments()
-    {
-        $pembayaran = Pembayaran::with('submission.user')->get();
-
-        foreach ($pembayaran as $payment) {
-            dump([
-                'id' => $payment->id,
-                'submission_id' => $payment->submission_id,
-                'submission_number' => $payment->submission ? $payment->submission->submission_number : 'No submission',
-                'user_name' => $payment->submission && $payment->submission->user ? $payment->submission->user->name : 'No user',
-                'status' => $payment->status,
-                'payment_proof' => $payment->payment_proof_path ? 'Has proof' : 'No proof',
-                'billing_file' => $payment->billing_file_path ? 'Has billing' : 'No billing'
-            ]);
-        }
-
-        return response('Debug completed - check output above');
     }
 
     public function updateStatus(Request $request, Submission $submission)
@@ -154,16 +147,13 @@ class AdminController extends Controller
         return redirect()->back()->with('success', 'Status pembayaran berhasil diperbarui!');
     }
 
-    /**
-     * Map payment status dari submission ke status pembayaran
-     */
     private function mapPaymentStatus($paymentStatus)
     {
         $mapping = [
             'Menunggu Pembayaran' => 'Menunggu Pembayaran',
             'Sudah Dibayar' => 'Terverifikasi',
             'Belum Dibayar' => 'Menunggu Pembayaran',
-            'Menunggu Verifikasi' => 'Dibayar', // Tambahkan ini untuk status user upload bukti
+            'Menunggu Verifikasi' => 'Dibayar',
             'Ditolak' => 'Ditolak',
             'Selesai' => 'Selesai'
         ];
@@ -171,64 +161,140 @@ class AdminController extends Controller
         return $mapping[$paymentStatus] ?? 'Menunggu Pembayaran';
     }
 
-    /**
-     * Method untuk mendapatkan statistik pembayaran detail
-     */
-    public function getPaymentStats()
+    // Archive Management Methods
+    public function getArchiveData(Request $request)
     {
-        return [
-            'total_billing' => Pembayaran::whereNotNull('billing_file_path')->count(),
-            'menunggu_pembayaran' => Pembayaran::where('status', 'Menunggu Pembayaran')->count(),
-            'sudah_dibayar' => Pembayaran::where('status', 'Dibayar')->count(),
-            'terverifikasi' => Pembayaran::where('status', 'Terverifikasi')->count(),
-            'selesai' => Pembayaran::where('status', 'Selesai')->count(),
-        ];
-    }
+        $query = Archive::with(['user', 'pembayaran']);
 
-    /**
-     * Method khusus untuk mengambil data pembayaran untuk tabel terpisah
-     */
-    public function getPembayaranData()
-    {
-        return Pembayaran::with(['submission.user'])
-            ->whereHas('submission', function ($query) {
-                $query->where('status', 'Diterima');
-            })
-            ->latest()
-            ->get();
-    }
-
-    /**
-     * Method untuk testing query pembayaran
-     */
-    public function testPembayaranQuery()
-    {
-        // Test 1: Ambil semua pembayaran
-        $allPayments = Pembayaran::count();
-        echo "Total payments: " . $allPayments . "<br>";
-
-        // Test 2: Ambil pembayaran dengan status Dibayar
-        $paidPayments = Pembayaran::where('status', 'Dibayar')->count();
-        echo "Paid payments: " . $paidPayments . "<br>";
-
-        // Test 3: Ambil pembayaran dengan bukti upload
-        $withProof = Pembayaran::whereNotNull('payment_proof_path')->count();
-        echo "Payments with proof: " . $withProof . "<br>";
-
-        // Test 4: Ambil submissions dengan pembayaran
-        $submissionsWithPayments = Submission::whereHas('pembayaran')->count();
-        echo "Submissions with payments: " . $submissionsWithPayments . "<br>";
-
-        // Test 5: Detail pembayaran terbaru
-        $latestPayments = Pembayaran::with('submission.user')->latest()->take(5)->get();
-        echo "<h3>Latest 5 payments:</h3>";
-        foreach ($latestPayments as $payment) {
-            echo "ID: " . $payment->id . " - ";
-            echo "Status: " . $payment->status . " - ";
-            echo "Submission: " . ($payment->submission ? $payment->submission->submission_number : 'No submission') . " - ";
-            echo "User: " . ($payment->submission && $payment->submission->user ? $payment->submission->user->name : 'No user') . "<br>";
+        // Apply filters
+        if ($request->year) {
+            $query->whereYear('archived_at', $request->year);
+        }
+        if ($request->month) {
+            $query->whereMonth('archived_at', $request->month);
+        }
+        if ($request->status) {
+            $query->where('status', $request->status);
+        }
+        if ($request->data_type) {
+            $query->where('data_type', $request->data_type);
         }
 
-        return response('Test completed');
+        $archives = $query->orderBy('archived_at', 'desc')->get();
+
+        $stats = [
+            'total' => Archive::count(),
+            'completed' => Archive::where('status', 'Diterima')->count(),
+            'rejected' => Archive::where('status', 'Ditolak')->count(),
+            'monthly' => Archive::whereMonth('archived_at', now()->month)
+                ->whereYear('archived_at', now()->year)
+                ->count()
+        ];
+
+        return response()->json([
+            'archives' => $archives,
+            'stats' => $stats
+        ]);
+    }
+
+    public function archiveSubmission(Request $request, $submissionId)
+    {
+        $submission = Submission::findOrFail($submissionId);
+
+        // Check if already archived
+        if (Archive::where('submission_id', $submissionId)->exists()) {
+            return response()->json(['error' => 'Pengajuan sudah diarsipkan'], 400);
+        }
+
+        $archive = Archive::create([
+            'submission_id' => $submission->id,
+            'user_id' => $submission->user_id,
+            'submission_number' => $submission->submission_number,
+            'data_type' => $submission->data_type,
+            'status' => $submission->status,
+            'admin_notes' => $request->admin_notes,
+            'cover_letter_path' => $submission->cover_letter_path,
+            'final_document_path' => $submission->final_document_path ?? null,
+            'archived_at' => now()
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Pengajuan berhasil diarsipkan']);
+    }
+
+    public function showArchiveDetail($id)
+    {
+        $archive = Archive::with(['user', 'submission', 'pembayaran'])->findOrFail($id);
+        return view('admin.archive.detail', compact('archive'));
+    }
+
+    public function unarchiveSubmission($id)
+    {
+        $archive = Archive::findOrFail($id);
+        $archive->delete();
+
+        return response()->json(['success' => true, 'message' => 'Data berhasil dikeluarkan dari arsip']);
+    }
+
+    public function downloadArchiveDocument($id, $type)
+    {
+        $archive = Archive::findOrFail($id);
+
+        $filePath = match ($type) {
+            'cover_letter' => $archive->cover_letter_path,
+            'payment_proof' => $archive->pembayaran?->payment_proof_path,
+            'billing' => $archive->pembayaran?->billing_file_path,
+            'final_document' => $archive->final_document_path,
+            default => null
+        };
+
+        if (!$filePath || !Storage::exists($filePath)) {
+            abort(404, 'File tidak ditemukan');
+        }
+
+        return Storage::download($filePath);
+    }
+
+    public function exportArchiveData(Request $request)
+    {
+        $query = Archive::with(['user', 'pembayaran']);
+
+        // Apply filters
+        if ($request->year) {
+            $query->whereYear('archived_at', $request->year);
+        }
+        if ($request->month) {
+            $query->whereMonth('archived_at', $request->month);
+        }
+        if ($request->status) {
+            $query->where('status', $request->status);
+        }
+        if ($request->data_type) {
+            $query->where('data_type', $request->data_type);
+        }
+
+        $archives = $query->get();
+
+        // Generate CSV
+        $csvData = "Nomor Pengajuan,Pemohon,Email,Jenis Data,Status,Tanggal Arsip,Catatan Admin\n";
+
+        foreach ($archives as $archive) {
+            $csvData .= sprintf(
+                "%s,%s,%s,%s,%s,%s,%s\n",
+                $archive->submission_number,
+                $archive->user->name,
+                $archive->user->email,
+                $archive->data_type,
+                $archive->status,
+                $archive->archived_at->format('Y-m-d'),
+                str_replace([',', "\n", "\r"], [';', ' ', ' '], $archive->admin_notes ?? '')
+            );
+        }
+
+        $filename = 'arsip_data_' . now()->format('Y_m_d_His') . '.csv';
+
+        return Response::make($csvData, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
     }
 }

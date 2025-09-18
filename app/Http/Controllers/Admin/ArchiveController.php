@@ -3,229 +3,134 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Archive;
 use App\Models\Submission;
 use App\Models\Pembayaran;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Response;
 
 class ArchiveController extends Controller
 {
-    public function index(Request $request)
+    public function index()
     {
-        $query = Submission::with(['user', 'pembayaran'])
-            ->where('is_archived', true)
-            ->orderBy('archived_at', 'desc');
+        $archives = Archive::with(['user', 'pembayaran'])
+            ->orderBy('archived_at', 'desc')
+            ->get();
 
-        // Filter berdasarkan bulan dan tahun
-        if ($request->filled('month') && $request->filled('year')) {
-            $query->whereMonth('archived_at', $request->month)
-                ->whereYear('archived_at', $request->year);
-        } elseif ($request->filled('year')) {
-            $query->whereYear('archived_at', $request->year);
+        $stats = [
+            'total' => Archive::count(),
+            'completed' => Archive::where('status', 'Diterima')->count(),
+            'rejected' => Archive::where('status', 'Ditolak')->count(),
+            'monthly' => Archive::whereMonth('archived_at', now()->month)
+                ->whereYear('archived_at', now()->year)
+                ->count()
+        ];
+
+        return response()->json([
+            'archives' => $archives,
+            'stats' => $stats
+        ]);
+    }
+
+    public function store(Request $request, $submissionId)
+    {
+        $submission = Submission::findOrFail($submissionId);
+
+        // Check if already archived
+        if (Archive::where('submission_id', $submissionId)->exists()) {
+            return response()->json(['error' => 'Pengajuan sudah diarsipkan'], 400);
         }
 
-        // Filter berdasarkan status
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
+        $archive = Archive::create([
+            'submission_id' => $submission->id,
+            'user_id' => $submission->user_id,
+            'submission_number' => $submission->submission_number,
+            'data_type' => $submission->data_type,
+            'status' => $submission->status,
+            'admin_notes' => $request->admin_notes,
+            'cover_letter_path' => $submission->cover_letter_path,
+            'final_document_path' => $submission->final_document_path ?? null,
+            'archived_at' => now()
+        ]);
 
-        // Filter berdasarkan jenis data
-        if ($request->filled('data_type')) {
-            $query->where('data_type', $request->data_type);
-        }
-
-        if ($request->ajax()) {
-            $archives = $query->get();
-            $stats = $this->getArchiveStats($request);
-            return response()->json([
-                'archives' => $archives,
-                'stats' => $stats
-            ]);
-        }
-
-        $archives = $query->paginate(20);
-        $stats = $this->getArchiveStats($request);
-
-        return view('admin.archive.index', compact('archives', 'stats'));
+        return response()->json(['success' => true, 'message' => 'Pengajuan berhasil diarsipkan']);
     }
 
     public function show($id)
     {
-        $archive = Submission::with(['user', 'pembayaran'])->where('is_archived', true)->findOrFail($id);
-
-        return view('admin.archive.show', compact('archive'));
+        $archive = Archive::with(['user', 'submission', 'pembayaran'])->findOrFail($id);
+        return view('admin.archive.detail', compact('archive'));
     }
 
-    public function archive(Request $request, $id)
+    public function destroy($id)
     {
-        $submission = Submission::findOrFail($id);
+        $archive = Archive::findOrFail($id);
+        $archive->delete();
 
-        $submission->update([
-            'is_archived' => true,
-            'archived_at' => now(),
-            'admin_notes' => $request->admin_notes
-        ]);
-
-        return redirect()->back()->with('success', 'Pengajuan berhasil diarsipkan.');
+        return response()->json(['success' => true, 'message' => 'Data berhasil dikeluarkan dari arsip']);
     }
 
-    public function unarchive($id)
+    public function download($id, $type)
     {
-        $submission = Submission::findOrFail($id);
+        $archive = Archive::findOrFail($id);
 
-        $submission->update([
-            'is_archived' => false,
-            'archived_at' => null
-        ]);
+        $filePath = match ($type) {
+            'cover_letter' => $archive->cover_letter_path,
+            'payment_proof' => $archive->pembayaran?->payment_proof_path,
+            'billing' => $archive->pembayaran?->billing_file_path,
+            'final_document' => $archive->final_document_path,
+            default => null
+        };
 
-        if (request()->ajax()) {
-            return response()->json(['success' => true]);
-        }
-
-        return redirect()->back()->with('success', 'Pengajuan berhasil dibatalkan dari arsip.');
-    }
-
-    public function uploadFinalDocument(Request $request, $id)
-    {
-        $request->validate([
-            'final_document' => 'required|file|mimes:pdf,doc,docx|max:10240'
-        ]);
-
-        $submission = Submission::findOrFail($id);
-
-        if ($request->hasFile('final_document')) {
-            // Hapus file lama jika ada
-            if ($submission->final_document_path) {
-                Storage::disk('public')->delete($submission->final_document_path);
-            }
-
-            $file = $request->file('final_document');
-            $filename = 'final_documents/' . $submission->submission_number . '_final_' . time() . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs('', $filename, 'public');
-
-            $submission->update([
-                'final_document_path' => $path
-            ]);
-        }
-
-        return redirect()->back()->with('success', 'Dokumen final berhasil diupload.');
-    }
-
-    public function downloadDocument($id, $type)
-    {
-        $submission = Submission::with(['pembayaran'])->findOrFail($id);
-
-        $filePath = null;
-        $fileName = null;
-
-        switch ($type) {
-            case 'cover_letter':
-                $filePath = $submission->cover_letter_path;
-                $fileName = $submission->submission_number . '_surat_pengantar.pdf';
-                break;
-            case 'payment_proof':
-                if ($submission->pembayaran) {
-                    $filePath = $submission->pembayaran->payment_proof_path;
-                    $fileName = $submission->submission_number . '_bukti_bayar.pdf';
-                }
-                break;
-            case 'billing':
-                if ($submission->pembayaran) {
-                    $filePath = $submission->pembayaran->billing_file_path;
-                    $fileName = $submission->submission_number . '_billing.pdf';
-                }
-                break;
-            case 'final_document':
-                $filePath = $submission->final_document_path;
-                $fileName = $submission->submission_number . '_dokumen_final.pdf';
-                break;
-            default:
-                abort(404);
-        }
-
-        if (!$filePath || !Storage::disk('public')->exists($filePath)) {
+        if (!$filePath || !Storage::exists($filePath)) {
             abort(404, 'File tidak ditemukan');
         }
 
-        return Storage::disk('public')->download($filePath, $fileName);
+        return Storage::download($filePath);
     }
 
     public function exportData(Request $request)
     {
-        $query = Submission::with(['user', 'pembayaran'])
-            ->where('is_archived', true);
+        $query = Archive::with(['user', 'pembayaran']);
 
-        if ($request->filled('month') && $request->filled('year')) {
-            $query->whereMonth('archived_at', $request->month)
-                ->whereYear('archived_at', $request->year);
-        } elseif ($request->filled('year')) {
+        // Apply filters
+        if ($request->year) {
             $query->whereYear('archived_at', $request->year);
         }
-
-        if ($request->filled('status')) {
+        if ($request->month) {
+            $query->whereMonth('archived_at', $request->month);
+        }
+        if ($request->status) {
             $query->where('status', $request->status);
         }
-
-        if ($request->filled('data_type')) {
+        if ($request->data_type) {
             $query->where('data_type', $request->data_type);
         }
 
         $archives = $query->get();
 
-        $csvData = "No,Nomor Pengajuan,Pemohon,Email,Jenis Data,Status,Tanggal Arsip,Catatan Admin\n";
+        // Generate CSV
+        $csvData = "Nomor Pengajuan,Pemohon,Email,Jenis Data,Status,Tanggal Arsip,Catatan Admin\n";
 
-        foreach ($archives as $index => $archive) {
-            $csvData .= ($index + 1) . "," .
-                $archive->submission_number . "," .
-                $archive->user->name . "," .
-                $archive->user->email . "," .
-                $archive->data_type . "," .
-                $archive->status . "," .
-                $archive->archived_at->format('d-m-Y') . "," .
-                '"' . ($archive->admin_notes ?? '') . '"' . "\n";
+        foreach ($archives as $archive) {
+            $csvData .= sprintf(
+                "%s,%s,%s,%s,%s,%s,%s\n",
+                $archive->submission_number,
+                $archive->user->name,
+                $archive->user->email,
+                $archive->data_type,
+                $archive->status,
+                $archive->archived_at->format('Y-m-d'),
+                str_replace([',', "\n", "\r"], [';', ' ', ' '], $archive->admin_notes ?? '')
+            );
         }
 
-        $fileName = 'arsip_pengajuan_' . date('Y-m-d') . '.csv';
+        $filename = 'arsip_data_' . now()->format('Y_m_d_His') . '.csv';
 
-        return response($csvData)
-            ->header('Content-Type', 'text/csv')
-            ->header('Content-Disposition', 'attachment; filename="' . $fileName . '"');
-    }
-
-    private function getArchiveStats($request)
-    {
-        $baseQuery = Submission::where('is_archived', true);
-
-        if ($request->filled('month') && $request->filled('year')) {
-            $baseQuery->whereMonth('archived_at', $request->month)
-                ->whereYear('archived_at', $request->year);
-        } elseif ($request->filled('year')) {
-            $baseQuery->whereYear('archived_at', $request->year);
-        }
-
-        return [
-            'total_archived' => $baseQuery->count(),
-            'completed' => $baseQuery->where('status', 'Diterima')->count(),
-            'rejected' => $baseQuery->where('status', 'Ditolak')->count(),
-            'monthly_data' => $this->getMonthlyArchiveData($request->year ?? date('Y'))
-        ];
-    }
-
-    private function getMonthlyArchiveData($year)
-    {
-        return Submission::where('is_archived', true)
-            ->whereYear('archived_at', $year)
-            ->select(
-                DB::raw('MONTH(archived_at) as month'),
-                DB::raw('COUNT(*) as total'),
-                DB::raw('SUM(CASE WHEN status = "Diterima" THEN 1 ELSE 0 END) as completed'),
-                DB::raw('SUM(CASE WHEN status = "Ditolak" THEN 1 ELSE 0 END) as rejected')
-            )
-            ->groupBy(DB::raw('MONTH(archived_at)'))
-            ->orderBy('month')
-            ->pluck('total', 'month')
-            ->toArray();
+        return Response::make($csvData, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
     }
 }
