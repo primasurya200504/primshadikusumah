@@ -52,6 +52,8 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
     Route::patch('/submissions/{submission}/update-payment-status', [AdminController::class, 'updatePaymentStatus'])->name('submissions.updatePaymentStatus');
 
     Route::resource('guidelines', GuidelineController::class)->only(['index', 'store', 'update', 'destroy'])->names('guidelines');
+    // Di dalam admin routes group
+    Route::get('/guidelines', [GuidelineController::class, 'index'])->name('guidelines.index');
 
     Route::prefix('pembayaran')->name('pembayaran.')->group(function () {
         Route::get('/', [AdminPembayaranController::class, 'index'])->name('index');
@@ -63,15 +65,14 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::delete('/{id}', [AdminPembayaranController::class, 'destroy'])->name('destroy');
     });
 
+    // Pastikan archive routes ini ada di admin group
     Route::prefix('archive')->name('archive.')->group(function () {
-        Route::get('/', [ArchiveController::class, 'index'])->name('index');
-        Route::get('/api', [ArchiveController::class, 'index'])->name('api');
-        Route::get('/{id}', [ArchiveController::class, 'show'])->name('show');
-        Route::post('/{id}', [ArchiveController::class, 'archive'])->name('store');
-        Route::delete('/{id}', [ArchiveController::class, 'unarchive'])->name('unarchive');
-        Route::post('/{id}/upload-final', [ArchiveController::class, 'uploadFinalDocument'])->name('upload-final');
-        Route::get('/{id}/download/{type}', [ArchiveController::class, 'downloadDocument'])->name('download');
-        Route::get('/export/data', [ArchiveController::class, 'exportData'])->name('export');
+        Route::get('/', [App\Http\Controllers\Admin\ArchiveController::class, 'index'])->name('index');
+        Route::get('/{id}', [App\Http\Controllers\Admin\ArchiveController::class, 'show'])->name('show');
+        Route::post('/{id}', [App\Http\Controllers\Admin\ArchiveController::class, 'archive'])->name('store');
+        Route::delete('/{id}', [App\Http\Controllers\Admin\ArchiveController::class, 'unarchive'])->name('unarchive');
+        Route::get('/{id}/download/{type}', [App\Http\Controllers\Admin\ArchiveController::class, 'downloadDocument'])->name('download');
+        Route::get('/export/data', [App\Http\Controllers\Admin\ArchiveController::class, 'exportData'])->name('export');
     });
 });
 

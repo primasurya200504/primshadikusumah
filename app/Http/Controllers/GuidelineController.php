@@ -55,4 +55,9 @@ class GuidelineController extends Controller
 
         return back()->with('success', 'Panduan berhasil dihapus.');
     }
+    public function index()
+    {
+        $guidelines = Guideline::latest()->get();
+        return view('admin.guidelines.index', compact('guidelines'));
+    }
 }

@@ -11,7 +11,7 @@ class Archive extends Model
 
     protected $fillable = [
         'submission_id',
-        'user_id', 
+        'user_id',
         'submission_number',
         'data_type',
         'status',
@@ -25,6 +25,7 @@ class Archive extends Model
         'archived_at' => 'datetime',
     ];
 
+    // Relationships
     public function user()
     {
         return $this->belongsTo(User::class);
@@ -37,6 +38,13 @@ class Archive extends Model
 
     public function pembayaran()
     {
-        return $this->hasOne(Pembayaran::class, 'submission_id', 'submission_id');
+        return $this->hasOneThrough(
+            Pembayaran::class,
+            Submission::class,
+            'id', // Foreign key on submissions table
+            'submission_id', // Foreign key on pembayarans table
+            'submission_id', // Local key on archives table
+            'id' // Local key on submissions table
+        );
     }
 }

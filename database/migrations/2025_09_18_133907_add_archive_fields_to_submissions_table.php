@@ -8,18 +8,23 @@ return new class extends Migration
 {
     public function up()
     {
-        Schema::table('submissions', function (Blueprint $table) {
-            $table->boolean('is_archived')->default(false)->after('payment_status');
-            $table->timestamp('archived_at')->nullable()->after('is_archived');
-            $table->string('final_document_path')->nullable()->after('archived_at');
-            $table->text('admin_notes')->nullable()->after('final_document_path');
+        Schema::create('archives', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('submission_id')->constrained()->onDelete('cascade');
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->string('submission_number');
+            $table->string('data_type');
+            $table->string('status');
+            $table->text('admin_notes')->nullable();
+            $table->string('cover_letter_path')->nullable();
+            $table->string('final_document_path')->nullable();
+            $table->timestamp('archived_at');
+            $table->timestamps();
         });
     }
 
     public function down()
     {
-        Schema::table('submissions', function (Blueprint $table) {
-            $table->dropColumn(['is_archived', 'archived_at', 'final_document_path', 'admin_notes']);
-        });
+        Schema::dropIfExists('archives');
     }
 };
