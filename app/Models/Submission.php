@@ -2,45 +2,53 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany; // Import class HasMany
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Submission extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'submission_number',
         'user_id',
-        'submission_type', // Menambahkan kolom baru untuk PNBP/Non-PNBP
+        'submission_number',
         'data_type',
         'category',
         'start_date',
         'end_date',
         'purpose',
-        'cover_letter_path',
         'status',
         'payment_status',
-        'rejection_note',
-        'ebilling_path',
-        'payment_proof_path',
+        'cover_letter_path',
+        'rejection_note'
     ];
 
-    /**
-     * Dapatkan user yang memiliki pengajuan ini.
-     */
-    public function user(): BelongsTo
+    protected $casts = [
+        'start_date' => 'date',
+        'end_date' => 'date',
+    ];
+
+    // Relasi ke User
+    public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * Dapatkan file-file yang terkait dengan pengajuan ini.
-     */
-    public function files(): HasMany
+    // Relasi ke SubmissionFile
+    public function files()
     {
         return $this->hasMany(SubmissionFile::class);
+    }
+
+    // Relasi ke Pembayaran
+    public function pembayaran()
+    {
+        return $this->hasOne(Pembayaran::class);
+    }
+
+    // Scope untuk filter berdasarkan status
+    public function scopeByStatus($query, $status)
+    {
+        return $query->where('status', $status);
     }
 }

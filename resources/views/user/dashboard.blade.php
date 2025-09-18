@@ -54,6 +54,35 @@
             text-decoration: none;
             cursor: pointer;
         }
+
+        /* Alert Payment Styles */
+        .alert-payment {
+            border-left: 4px solid #3b82f6;
+            background-color: #eff6ff;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
+        .alert-payment-success {
+            border-left-color: #10b981;
+            background-color: #ecfdf5;
+        }
+
+        .alert-payment-warning {
+            border-left-color: #f59e0b;
+            background-color: #fffbeb;
+        }
+
+        .action-button {
+            transition: all 0.2s ease;
+            font-size: 11px;
+            padding: 4px 8px;
+        }
+
+        .action-button:hover {
+            transform: translateY(-1px);
+        }
     </style>
 </head>
 
@@ -82,8 +111,7 @@
             <nav class="space-y-4">
                 <a href="#dashboard" id="nav-dashboard"
                     class="flex items-center p-3 text-gray-600 hover:text-white hover:bg-indigo-600 rounded-lg transition-colors duration-200">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                        xmlns="http://www.w3.org/2000/svg">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2-2m-2 2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6">
                         </path>
@@ -92,8 +120,7 @@
                 </a>
                 <a href="#pengajuan" id="nav-pengajuan"
                     class="flex items-center p-3 text-gray-600 hover:text-white hover:bg-indigo-600 rounded-lg transition-colors duration-200">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                        xmlns="http://www.w3.org/2000/svg">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
                         </path>
@@ -102,8 +129,7 @@
                 </a>
                 <a href="#panduan" id="nav-panduan"
                     class="flex items-center p-3 text-gray-600 hover:text-white hover:bg-indigo-600 rounded-lg transition-colors duration-200">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                        xmlns="http://www.w3.org/2000/svg">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M12 6.253v13m0-13C10.832 5.468 9.587 5.097 8.323 5.097a2.796 2.796 0 00-.777.106V5.344a.796.796 0 00-.518-.755C6.012 4.382 4.67 4.195 3.328 4.195A2.796 2.796 0 00.552 4.41l.019.019V6.44c.54.496 1.15.828 1.83 1.012.68.184 1.41.282 2.16.282 1.342 0 2.684-.187 4.026-.563a.796.796 0 00.518-.755V5.344a.796.796 0 00.518-.755z">
                         </path>
@@ -112,8 +138,7 @@
                 </a>
                 <a href="{{ route('profile.edit') }}"
                     class="flex items-center p-3 text-gray-600 hover:text-white hover:bg-indigo-600 rounded-lg transition-colors duration-200">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                        xmlns="http://www.w3.org/2000/svg">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                     </svg>
@@ -126,8 +151,7 @@
                 @csrf
                 <button type="submit"
                     class="flex items-center w-full p-3 text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                        xmlns="http://www.w3.org/2000/svg">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1">
                         </path>
@@ -155,6 +179,41 @@
             </div>
         @endif
 
+        @if (session('error'))
+            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
+                <span class="block sm:inline">{{ session('error') }}</span>
+            </div>
+        @endif
+
+        {{-- Alert untuk Status Pembayaran --}}
+        @php
+            $pendingBilling = $submissions->where('status', 'Diterima')->filter(function ($submission) {
+                return !$submission->pembayaran || !$submission->pembayaran->billing_file_path;
+            });
+            $pendingPayment = $submissions->filter(function ($submission) {
+                return $submission->pembayaran && $submission->pembayaran->status === 'Menunggu Pembayaran';
+            });
+        @endphp
+
+        @if ($pendingBilling->count() > 0)
+            <div class="alert-payment alert-payment-warning mb-6">
+                <h4 class="font-semibold text-orange-800">⏳ Menunggu Billing</h4>
+                <p class="text-orange-700 text-sm">
+                    Anda memiliki {{ $pendingBilling->count() }} pengajuan yang sedang diproses billing oleh admin.
+                </p>
+            </div>
+        @endif
+
+        @if ($pendingPayment->count() > 0)
+            <div class="alert-payment mb-6">
+                <h4 class="font-semibold text-blue-800">💰 Pembayaran Tersedia</h4>
+                <p class="text-blue-700 text-sm">
+                    Anda memiliki {{ $pendingPayment->count() }} billing yang perlu dibayar.
+                    Silakan download billing dan upload bukti pembayaran.
+                </p>
+            </div>
+        @endif
+
         <section id="dashboard" class="content-section active">
             <div class="bg-white p-8 rounded-lg shadow-md">
                 <h3 class="text-2xl font-bold mb-4">Dasbor</h3>
@@ -167,6 +226,7 @@
                                 <th class="py-3 px-4">Tanggal Pengajuan</th>
                                 <th class="py-3 px-4">Jenis Data</th>
                                 <th class="py-3 px-4">Status</th>
+                                <th class="py-3 px-4">Status Pembayaran</th>
                                 <th class="py-3 px-4">Surat Pengantar</th>
                                 <th class="py-3 px-4 rounded-tr-lg">Aksi</th>
                             </tr>
@@ -177,17 +237,43 @@
                                     <td class="py-3 px-4">{{ $submission->submission_number }}</td>
                                     <td class="py-3 px-4">{{ $submission->created_at->format('Y-m-d') }}</td>
                                     <td class="py-3 px-4">{{ $submission->data_type }}</td>
+
+                                    {{-- Status Pengajuan --}}
                                     <td class="py-3 px-4">
                                         <span
                                             class="
-                                                @if ($submission->status === 'Berhasil') bg-green-100 text-green-700
-                                                @elseif ($submission->status === 'Menunggu Pembayaran') bg-yellow-100 text-yellow-700
-                                                @elseif ($submission->status === 'Ditolak') bg-red-100 text-red-700
-                                                @else bg-gray-100 text-gray-700 @endif
-                                                font-medium py-1 px-3 rounded-full">
+                                            @if ($submission->status === 'Berhasil') bg-green-100 text-green-700
+                                            @elseif ($submission->status === 'Diterima') bg-blue-100 text-blue-700
+                                            @elseif ($submission->status === 'Menunggu Verifikasi') bg-yellow-100 text-yellow-700
+                                            @elseif ($submission->status === 'Ditolak') bg-red-100 text-red-700
+                                            @else bg-gray-100 text-gray-700 @endif
+                                            font-medium py-1 px-3 rounded-full text-xs">
                                             {{ $submission->status }}
                                         </span>
                                     </td>
+
+                                    {{-- Status Pembayaran --}}
+                                    <td class="py-3 px-4">
+                                        @if ($submission->pembayaran)
+                                            <span
+                                                class="
+                                                @if ($submission->pembayaran->status === 'Selesai') bg-green-100 text-green-700
+                                                @elseif($submission->pembayaran->status === 'Terverifikasi') bg-blue-100 text-blue-700
+                                                @elseif($submission->pembayaran->status === 'Dibayar') bg-yellow-100 text-yellow-700
+                                                @elseif($submission->pembayaran->status === 'Menunggu Pembayaran') bg-orange-100 text-orange-700
+                                                @else bg-red-100 text-red-700 @endif
+                                                font-medium py-1 px-3 rounded-full text-xs">
+                                                {{ $submission->pembayaran->status }}
+                                            </span>
+                                        @else
+                                            <span
+                                                class="bg-gray-100 text-gray-700 font-medium py-1 px-3 rounded-full text-xs">
+                                                Belum Ada Billing
+                                            </span>
+                                        @endif
+                                    </td>
+
+                                    {{-- Surat Pengantar --}}
                                     <td class="py-3 px-4">
                                         @if ($submission->files && $submission->files->count())
                                             @foreach ($submission->files as $file)
@@ -202,26 +288,65 @@
                                             -
                                         @endif
                                     </td>
-                                    <td class="py-3 px-4 space-x-2">
-                                        @if ($submission->status === 'Berhasil')
-                                            <a href="{{ asset('storage/' . $submission->cover_letter_path) }}"
-                                                target="_blank" class="text-indigo-600 hover:underline">Unduh Data</a>
-                                        @elseif ($submission->status === 'Menunggu Pembayaran')
-                                            <a href="#" class="text-blue-600 hover:underline">Bayar</a>
-                                        @elseif ($submission->status === 'Ditolak')
-                                            <a href="#" onclick="showEditModal({{ json_encode($submission) }})"
-                                                class="text-gray-600 hover:underline">Edit</a>
-                                            <a href="https://wa.me/{{ $submission->user->phone_number }}?text=Halo%20Admin,%20saya%20ingin%20mengubah%20data%20pengajuan%20dengan%20nomor%20surat%20{{ $submission->submission_number }}.%20Catatan%20Penolakan:%20{{ $submission->rejection_note }}"
-                                                target="_blank" class="text-green-600 hover:underline">Hubungi via
-                                                WA</a>
-                                        @else
-                                            -
-                                        @endif
+
+                                    {{-- Aksi Pembayaran --}}
+                                    <td class="py-3 px-4">
+                                        <div class="flex flex-col space-y-1">
+                                            {{-- Jika pengajuan diterima dan ada billing --}}
+                                            @if ($submission->status === 'Diterima' && $submission->pembayaran)
+                                                {{-- Download Billing --}}
+                                                @if ($submission->pembayaran->billing_file_path)
+                                                    <a href="{{ route('user.pembayaran.download', $submission->pembayaran->id) }}"
+                                                        class="action-button bg-blue-500 hover:bg-blue-600 text-white text-center rounded">
+                                                        📄 Download Billing
+                                                    </a>
+
+                                                    {{-- Upload Bukti Pembayaran --}}
+                                                    @if (!$submission->pembayaran->payment_proof_path)
+                                                        <a href="{{ route('user.pembayaran.upload', $submission->id) }}"
+                                                            class="action-button bg-green-500 hover:bg-green-600 text-white text-center rounded">
+                                                            📤 Upload Bukti
+                                                        </a>
+                                                    @else
+                                                        <span class="text-green-600 text-xs text-center">✅ Bukti
+                                                            Terkirim</span>
+                                                    @endif
+                                                @else
+                                                    <span class="text-orange-600 text-xs text-center">⏳ Menunggu
+                                                        Billing</span>
+                                                @endif
+
+                                                {{-- Jika pengajuan berhasil --}}
+                                            @elseif ($submission->status === 'Berhasil')
+                                                <a href="{{ asset('storage/' . $submission->cover_letter_path) }}"
+                                                    target="_blank"
+                                                    class="action-button bg-indigo-500 hover:bg-indigo-600 text-white text-center rounded">
+                                                    📥 Unduh Data
+                                                </a>
+
+                                                {{-- Jika pengajuan ditolak --}}
+                                            @elseif ($submission->status === 'Ditolak')
+                                                <div class="flex flex-col space-y-1">
+                                                    <a href="#"
+                                                        onclick="showEditModal({{ json_encode($submission) }})"
+                                                        class="action-button bg-gray-500 hover:bg-gray-600 text-white text-center rounded">
+                                                        ✏️ Edit
+                                                    </a>
+                                                    <a href="https://wa.me/{{ $submission->user->phone_number ?? '6281234567890' }}?text=Halo%20Admin,%20saya%20ingin%20mengubah%20data%20pengajuan%20dengan%20nomor%20surat%20{{ $submission->submission_number }}.%20Catatan%20Penolakan:%20{{ $submission->rejection_note }}"
+                                                        target="_blank"
+                                                        class="action-button bg-green-500 hover:bg-green-600 text-white text-center rounded">
+                                                        💬 Hubungi WA
+                                                    </a>
+                                                </div>
+                                            @else
+                                                <span class="text-gray-500 text-xs text-center">-</span>
+                                            @endif
+                                        </div>
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="py-3 px-4 text-center text-gray-500">
+                                    <td colspan="7" class="py-6 px-4 text-center text-gray-500">
                                         Anda belum memiliki riwayat pengajuan.
                                     </td>
                                 </tr>
@@ -384,7 +509,7 @@
                                 class="accordion-header w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors duration-200">
                                 <span class="text-lg font-semibold text-gray-800">{{ $guideline->title }}</span>
                                 <svg class="w-6 h-6 transform transition-transform duration-200" fill="none"
-                                    stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M19 9l-7 7-7-7"></path>
                                 </svg>
@@ -450,21 +575,9 @@
                     <label for="edit_jenis_data" class="block text-gray-700 font-semibold mb-2">Jenis Data</label>
                     <select id="edit_jenis_data" name="jenis_data"
                         class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <option value="Informasi Cuaca untuk Pelayaran">Informasi Cuaca untuk Pelayaran</option>
-                        <option value="Informasi Cuaca untuk Pengeboran Lepas Pantai">Informasi Cuaca untuk Pengeboran
-                            Lepas Pantai</option>
-                        <option value="Informasi Meteorologi">Informasi Meteorologi</option>
-                        <option value="Informasi Cuaca Khusus untuk Kegiatan Olah Raga">Informasi Cuaca Khusus untuk
-                            Kegiatan Olah Raga</option>
-                        <option value="Informasi Cuaca Khusus untuk Kegiatan Komersial Outdoor/Indoor">Informasi Cuaca
-                            Khusus untuk Kegiatan Komersial Outdoor/Indoor</option>
-                        <option value="Peta Spasial Informasi Maritim">Peta Spasial Informasi Maritim</option>
-                        <option value="Informasi Tabular dan Grafik Maritim">Informasi Tabular dan Grafik Maritim
-                        </option>
-                        <option
-                            value="Informasi Meteorologi Khusus untuk Pendukung Kegiatan Proyek, Survei, dan Penelitian Komersial">
-                            Informasi Meteorologi Khusus untuk Pendukung Kegiatan Proyek, Survei, dan Penelitian
-                            Komersial</option>
+                        @foreach ($guidelines as $guideline)
+                            <option value="{{ $guideline->title }}">{{ $guideline->title }}</option>
+                        @endforeach
                     </select>
                 </div>
                 <div>
@@ -602,6 +715,15 @@
 
             // Set initial state
             toggleFileInputs(true);
+
+            // Auto-refresh untuk status pembayaran setiap 30 detik
+            setInterval(() => {
+                const currentUrl = window.location.href;
+                if (currentUrl.includes('#dashboard')) {
+                    console.log('Checking payment status...');
+                    // Optional: Implementasi refresh otomatis status
+                }
+            }, 30000);
         });
     </script>
 </body>

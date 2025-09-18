@@ -1,67 +1,56 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Models;
 
-use App\Models\Submission;
-use App\Models\User;
-use App\Models\Guideline;
-use Illuminate\Http\Request;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
-class AdminController extends Controller
+class Pembayaran extends Model
 {
-    public function dashboard()
+    use HasFactory;
+
+    protected $table = 'pembayaran';
+
+    protected $fillable = [
+        'submission_id',
+        'billing_file_path',
+        'billing_filename',
+        'billing_amount',
+        'billing_note',
+        'billing_date',
+        'payment_proof_path',
+        'payment_proof_filename',
+        'payment_date',
+        'payment_note',
+        'status',
+        'uploaded_by',
+        'uploaded_at',
+        'verified_by',
+        'verified_at'
+    ];
+
+    protected $casts = [
+        'billing_date' => 'date',
+        'payment_date' => 'date',
+        'uploaded_at' => 'datetime',
+        'verified_at' => 'datetime'
+    ];
+
+    // Relasi ke Submission
+    public function submission()
     {
-        $submissions = Submission::with('user')->latest()->get();
-        $users = User::where('role', '!=', 'admin')->latest()->get();
-        $guidelines = Guideline::latest()->get();
-
-        $totalSubmissions = Submission::count();
-        $pendingSubmissions = Submission::where('status', 'Menunggu Verifikasi')->count();
-        $pendingPayments = Submission::where('payment_status', 'Menunggu Pembayaran')->count();
-
-        return view('admin.admin_dashboard', compact(
-            'submissions',
-            'users',
-            'guidelines',
-            'totalSubmissions',
-            'pendingSubmissions',
-            'pendingPayments'
-        ));
+        return $this->belongsTo(Submission::class);
     }
 
-    public function updateStatus(Request $request, Submission $submission)
+    // Relasi ke User (yang upload)
+    public function uploadedBy()
     {
-        $request->validate([
-            'status' => 'required|string'
-        ]);
-
-        $submission->status = $request->status;
-        $submission->save();
-
-        // Jika status diubah menjadi "Diterima", update payment_status
-        if ($request->status === 'Diterima') {
-            $submission->payment_status = 'Menunggu Pembayaran';
-            $submission->save();
-        }
-
-        return redirect()->back()->with('success', 'Status pengajuan berhasil diperbarui!');
+        return $this->belongsTo(User::class, 'uploaded_by');
     }
 
-    public function updatePaymentStatus(Request $request, Submission $submission)
+    // Relasi ke User (yang verifikasi)
+    public function verifiedBy()
     {
-        $request->validate([
-            'payment_status' => 'required|string'
-        ]);
-
-        $submission->payment_status = $request->payment_status;
-
-        // Jika payment_status diubah menjadi "Sudah Dibayar", ubah status menjadi "Berhasil"
-        if ($request->payment_status === 'Sudah Dibayar') {
-            $submission->status = 'Berhasil';
-        }
-
-        $submission->save();
-
-        return redirect()->back()->with('success', 'Status pembayaran berhasil diperbarui!');
+        return $this->belongsTo(User::class, 'verified_by');
     }
 }
