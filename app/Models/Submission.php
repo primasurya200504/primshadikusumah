@@ -20,12 +20,18 @@ class Submission extends Model
         'status',
         'payment_status',
         'cover_letter_path',
-        'rejection_note'
+        'rejection_note',
+        'is_archived',
+        'archived_at',
+        'final_document_path',
+        'admin_notes'
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
+        'archived_at' => 'datetime',
+        'is_archived' => 'boolean'
     ];
 
     // Relasi ke User
@@ -50,5 +56,17 @@ class Submission extends Model
     public function scopeByStatus($query, $status)
     {
         return $query->where('status', $status);
+    }
+
+    // Scope untuk data yang diarsipkan
+    public function scopeArchived($query)
+    {
+        return $query->where('is_archived', true);
+    }
+
+    // Scope untuk data yang belum diarsipkan
+    public function scopeNotArchived($query)
+    {
+        return $query->where('is_archived', false);
     }
 }

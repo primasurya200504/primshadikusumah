@@ -60,6 +60,18 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::patch('/status/{id}', [AdminPembayaranController::class, 'updateStatus'])->name('status.update');
         Route::delete('/{id}', [AdminPembayaranController::class, 'destroy'])->name('destroy');
     });
-});
+
+    // Archive Routes - TAMBAHKAN INI
+    Route::prefix('archive')->name('archive.')->group(function () {
+        Route::get('/', [App\Http\Controllers\Admin\ArchiveController::class, 'index'])->name('index');
+        Route::get('/api', [App\Http\Controllers\Admin\ArchiveController::class, 'index'])->name('api');
+        Route::get('/{id}', [App\Http\Controllers\Admin\ArchiveController::class, 'show'])->name('show');
+        Route::post('/{id}', [App\Http\Controllers\Admin\ArchiveController::class, 'archive'])->name('store');
+        Route::delete('/{id}', [App\Http\Controllers\Admin\ArchiveController::class, 'unarchive'])->name('unarchive');
+        Route::post('/{id}/upload-final', [App\Http\Controllers\Admin\ArchiveController::class, 'uploadFinalDocument'])->name('upload-final');
+        Route::get('/{id}/download/{type}', [App\Http\Controllers\Admin\ArchiveController::class, 'downloadDocument'])->name('download');
+        Route::get('/export/data', [App\Http\Controllers\Admin\ArchiveController::class, 'exportData'])->name('export');
+    });
+}); 
 
 require __DIR__ . '/auth.php';
