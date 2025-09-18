@@ -7,12 +7,9 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-/**
- * @property-read \Illuminate\Database\Eloquent\Collection|\App\Models\Submission[] $submissions
- */
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable; // Pastikan HasFactory ada
 
     protected $fillable = [
         'name',
@@ -38,5 +35,11 @@ class User extends Authenticatable
     public function submissions(): HasMany
     {
         return $this->hasMany(Submission::class);
+    }
+
+    // Method untuk factory (jika diperlukan)
+    protected static function newFactory()
+    {
+        return \Database\Factories\UserFactory::new();
     }
 }
