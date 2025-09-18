@@ -1,4 +1,6 @@
-<x-app-layout>
+@extends('layouts.app')
+
+@section('content')
     <div class="container">
         <div class="row justify-content-center">
             <div class="col-md-8">
@@ -67,6 +69,12 @@
                                             {{ __('Forgot Your Password?') }}
                                         </a>
                                     @endif
+
+                                    <div class="mt-3">
+                                        <a href="{{ route('register') }}" class="btn btn-secondary">
+                                            {{ __('Register') }}
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
                         </form>
@@ -75,4 +83,4 @@
             </div>
         </div>
     </div>
-</x-app-layout>
+@endsection
