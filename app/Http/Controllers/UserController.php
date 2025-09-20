@@ -8,64 +8,67 @@ use App\Models\Guideline;
 use App\Models\SubmissionFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use App\Http\Requests\SubmissionRequest;
+use App\Http\Requests\UpdateSubmissionRequest;
 
 class UserController extends Controller
 {
     /**
      * Menampilkan dashboard user dengan riwayat pengajuan dan panduan.
-     * PERBAIKAN: Menambahkan relasi 'pembayaran' untuk menampilkan status pembayaran
      */
     public function dashboard()
     {
-        $user = Auth::user();
+        try {
+            $user = Auth::user();
+            
+            // Load relasi dengan eager loading untuk mencegah N+1 problem
+            $submissions = $user->submissions()
+                ->with(['files', 'pembayaran'])
+                ->latest()
+                ->take(10) // Limit untuk performance
+                ->get();
+            
+            $guidelines = Guideline::select('id', 'title', 'content')
+                ->orderBy('title')
+                ->get();
+            
+            // Statistics untuk dashboard
+            $stats = [
+                'totalSubmissions' => $user->submissions()->count(),
+                'pendingSubmissions' => $user->submissions()->where('status', 'Menunggu Verifikasi')->count(),
+                'approvedSubmissions' => $user->submissions()->where('status', 'Diterima')->count(),
+                'rejectedSubmissions' => $user->submissions()->where('status', 'Ditolak')->count(),
+            ];
 
-        // PERBAIKAN: Load relasi 'files' dan 'pembayaran' untuk menampilkan status pembayaran
-        $submissions = $user->submissions()
-            ->with(['files', 'pembayaran'])
-            ->latest()
-            ->get();
-
-        $guidelines = Guideline::all();
-
-        return view('user.dashboard', compact('user', 'submissions', 'guidelines'));
+            return view('user.dashboard', compact('user', 'submissions', 'guidelines', 'stats'));
+            
+        } catch (\Exception $e) {
+            Log::error('Error loading user dashboard', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return redirect()->route('welcome')
+                ->with('error', 'Terjadi kesalahan saat memuat dashboard. Silakan coba lagi.');
+        }
     }
 
     /**
      * Menyimpan pengajuan surat/data dari user.
      */
-    public function submitForm(Request $request)
+    public function submitForm(SubmissionRequest $request)
     {
-        // Validasi umum
-        $rules = [
-            'jenis_data' => 'required|string|max:255',
-            'kategori' => 'required|string|in:PNBP,Non-PNBP',
-            'tanggal_mulai' => 'nullable|date',
-            'tanggal_selesai' => 'nullable|date|after_or_equal:tanggal_mulai',
-            'keperluan' => 'required|string|max:1000',
-        ];
-
-        // Validasi file sesuai kategori
-        if ($request->input('kategori') === 'PNBP') {
-            $rules['files'] = 'required|array|min:1|max:1';
-        } else { // Non-PNBP
-            $rules['files'] = 'required|array|min:1|max:4';
-        }
-        $rules['files.*'] = 'file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240'; // 10MB per file
-
-        $validatedData = $request->validate($rules, [
-            'jenis_data.required' => 'Jenis data wajib dipilih.',
-            'kategori.required' => 'Kategori pengajuan wajib dipilih.',
-            'keperluan.required' => 'Keperluan penggunaan data wajib diisi.',
-            'files.required' => 'File surat pengantar wajib diupload.',
-            'files.*.mimes' => 'Format file tidak didukung. Gunakan PDF, DOC, DOCX, JPG, JPEG, atau PNG.',
-            'files.*.max' => 'Ukuran file maksimal 10MB.',
-            'tanggal_selesai.after_or_equal' => 'Tanggal selesai harus sama atau setelah tanggal mulai.',
-        ]);
-
+        DB::beginTransaction();
+        
         try {
+            $validatedData = $request->validated();
+            
             // Generate nomor pengajuan unik
-            $submissionNumber = 'BMKG/S.' . time() . '/' . date('Y');
-
+            $submissionNumber = $this->generateSubmissionNumber();
+            
             // Buat submission baru
             $submission = Auth::user()->submissions()->create([
                 'submission_number' => $submissionNumber,
@@ -78,37 +81,13 @@ class UserController extends Controller
                 'payment_status' => 'Belum Dibayar',
             ]);
 
-            // Penentuan folder storage berdasarkan kategori
-            $folder = $validatedData['kategori'] === 'PNBP'
-                ? 'submission_files/pnbp'
-                : 'submission_files/non-pnbp';
-
             // Handle upload files
-            $files = $request->file('files');
-            if ($files && !is_array($files)) {
-                $files = [$files];
+            if ($request->hasFile('files')) {
+                $this->handleFileUploads($request->file('files'), $submission, $validatedData['kategori']);
             }
 
-            if ($files) {
-                foreach ($files as $index => $file) {
-                    $originalName = $file->getClientOriginalName();
-                    $path = $file->store($folder, 'public');
-
-                    SubmissionFile::create([
-                        'submission_id' => $submission->id,
-                        'file_path' => $path,
-                        'file_name' => $originalName,
-                        'file_type' => $file->getClientMimeType(),
-                        'file_size' => $file->getSize(),
-                    ]);
-                }
-
-                // Simpan path file pertama sebagai cover_letter_path untuk backward compatibility
-                $submission->update([
-                    'cover_letter_path' => $files[0]->store($folder, 'public')
-                ]);
-            }
-
+            DB::commit();
+            
             Log::info("Pengajuan berhasil dibuat", [
                 'user_id' => Auth::id(),
                 'submission_id' => $submission->id,
@@ -116,15 +95,74 @@ class UserController extends Controller
             ]);
 
             return redirect()->route('user.dashboard')
-                ->with('success', 'Pengajuan berhasil dikirim dengan nomor ' . $submissionNumber . '. Admin akan memverifikasi pengajuan Anda.');
+                ->with('success', "Pengajuan berhasil dikirim dengan nomor {$submissionNumber}. Admin akan memverifikasi pengajuan Anda.");
+                
         } catch (\Exception $e) {
+            DB::rollBack();
+            
             Log::error("Pengajuan gagal untuk user " . Auth::id(), [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'data' => $request->except(['files'])
             ]);
 
             return redirect()->back()
-                ->withErrors(['gagal' => 'Terjadi kesalahan saat pengajuan. Mohon coba lagi.'])
+                ->withErrors(['error' => 'Terjadi kesalahan saat pengajuan. Mohon coba lagi.'])
+                ->withInput();
+        }
+    }
+
+    /**
+     * Update pengajuan yang ditolak (untuk re-submission)
+     */
+    public function updateSubmission(UpdateSubmissionRequest $request, $id)
+    {
+        DB::beginTransaction();
+        
+        try {
+            $submission = Submission::where('id', $id)
+                ->where('user_id', Auth::id())
+                ->where('status', 'Ditolak')
+                ->firstOrFail();
+
+            $validatedData = $request->validated();
+
+            // Update data submission
+            $submission->update([
+                'data_type' => $validatedData['jenis_data'],
+                'start_date' => $validatedData['tanggal_mulai'] ?? null,
+                'end_date' => $validatedData['tanggal_selesai'] ?? null,
+                'purpose' => $validatedData['keperluan'],
+                'status' => 'Menunggu Verifikasi',
+                'rejection_note' => null,
+            ]);
+
+            // Handle file upload jika ada
+            if ($request->hasFile('surat_pengantar')) {
+                $this->handleSingleFileUpload($request->file('surat_pengantar'), $submission);
+            }
+
+            DB::commit();
+            
+            Log::info("Pengajuan berhasil diupdate", [
+                'user_id' => Auth::id(),
+                'submission_id' => $submission->id
+            ]);
+
+            return redirect()->route('user.dashboard')
+                ->with('success', 'Pengajuan berhasil diperbarui. Admin akan memverifikasi kembali pengajuan Anda.');
+                
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            Log::error("Update pengajuan gagal", [
+                'user_id' => Auth::id(),
+                'submission_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+
+            return redirect()->back()
+                ->withErrors(['error' => 'Terjadi kesalahan saat memperbarui pengajuan.'])
                 ->withInput();
         }
     }
@@ -134,82 +172,21 @@ class UserController extends Controller
      */
     public function showGuidelines()
     {
-        $guidelines = Guideline::orderBy('title')->get();
-
-        return view('user.guidelines', compact('guidelines'));
-    }
-
-    /**
-     * Update pengajuan yang ditolak (untuk re-submission)
-     */
-    public function updateSubmission(Request $request, $id)
-    {
-        $submission = Submission::where('id', $id)
-            ->where('user_id', Auth::id())
-            ->where('status', 'Ditolak')
-            ->firstOrFail();
-
-        $rules = [
-            'jenis_data' => 'required|string|max:255',
-            'tanggal_mulai' => 'nullable|date',
-            'tanggal_selesai' => 'nullable|date|after_or_equal:tanggal_mulai',
-            'keperluan' => 'required|string|max:1000',
-            'surat_pengantar' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
-        ];
-
-        $validatedData = $request->validate($rules);
-
         try {
-            // Update data submission
-            $submission->update([
-                'data_type' => $validatedData['jenis_data'],
-                'start_date' => $validatedData['tanggal_mulai'] ?? null,
-                'end_date' => $validatedData['tanggal_selesai'] ?? null,
-                'purpose' => $validatedData['keperluan'],
-                'status' => 'Menunggu Verifikasi',
-                'rejection_note' => null, // Clear rejection note
-            ]);
-
-            // Handle file upload jika ada
-            if ($request->hasFile('surat_pengantar')) {
-                $file = $request->file('surat_pengantar');
-                $folder = $submission->category === 'PNBP'
-                    ? 'submission_files/pnbp'
-                    : 'submission_files/non-pnbp';
-
-                $path = $file->store($folder, 'public');
-
-                // Update atau create file record
-                SubmissionFile::updateOrCreate(
-                    ['submission_id' => $submission->id],
-                    [
-                        'file_path' => $path,
-                        'file_name' => $file->getClientOriginalName(),
-                        'file_type' => $file->getClientMimeType(),
-                        'file_size' => $file->getSize(),
-                    ]
-                );
-
-                $submission->update(['cover_letter_path' => $path]);
-            }
-
-            Log::info("Pengajuan berhasil diupdate", [
-                'user_id' => Auth::id(),
-                'submission_id' => $submission->id
-            ]);
-
-            return redirect()->route('user.dashboard')
-                ->with('success', 'Pengajuan berhasil diperbarui. Admin akan memverifikasi kembali pengajuan Anda.');
+            $guidelines = Guideline::select('id', 'title', 'content', 'requirements')
+                ->orderBy('title')
+                ->get();
+                
+            return view('user.guidelines', compact('guidelines'));
+            
         } catch (\Exception $e) {
-            Log::error("Update pengajuan gagal", [
+            Log::error('Error loading guidelines', [
                 'user_id' => Auth::id(),
-                'submission_id' => $id,
                 'error' => $e->getMessage()
             ]);
-
-            return redirect()->back()
-                ->withErrors(['gagal' => 'Terjadi kesalahan saat memperbarui pengajuan.'])
-                ->withInput();
+            
+            return redirect()->route('user.dashboard')
+                ->with('error', 'Terjadi kesalahan saat memuat panduan.');
         }
     }
 
@@ -218,11 +195,88 @@ class UserController extends Controller
      */
     public function showSubmission($id)
     {
-        $submission = Submission::with(['files', 'pembayaran'])
-            ->where('id', $id)
-            ->where('user_id', Auth::id())
-            ->firstOrFail();
+        try {
+            $submission = Submission::with(['files', 'pembayaran'])
+                ->where('id', $id)
+                ->where('user_id', Auth::id())
+                ->firstOrFail();
 
-        return view('user.submission-detail', compact('submission'));
+            return view('user.submission-detail', compact('submission'));
+            
+        } catch (\Exception $e) {
+            Log::error('Error loading submission detail', [
+                'user_id' => Auth::id(),
+                'submission_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+            
+            return redirect()->route('user.dashboard')
+                ->with('error', 'Pengajuan tidak ditemukan.');
+        }
+    }
+
+    // PRIVATE HELPER METHODS
+    
+    /**
+     * Generate nomor pengajuan unik
+     */
+    private function generateSubmissionNumber(): string
+    {
+        return 'BMKG/S.' . time() . '/' . date('Y');
+    }
+
+    /**
+     * Handle multiple file uploads
+     */
+    private function handleFileUploads(array $files, Submission $submission, string $category): void
+    {
+        $folder = $category === 'PNBP' 
+            ? 'submission_files/pnbp' 
+            : 'submission_files/non-pnbp';
+
+        foreach ($files as $file) {
+            $originalName = $file->getClientOriginalName();
+            $path = $file->store($folder, 'public');
+
+            SubmissionFile::create([
+                'submission_id' => $submission->id,
+                'file_path' => $path,
+                'file_name' => $originalName,
+                'file_type' => $file->getClientMimeType(),
+                'file_size' => $file->getSize(),
+            ]);
+        }
+
+        // Update cover_letter_path untuk backward compatibility
+        if (!empty($files)) {
+            $submission->update([
+                'cover_letter_path' => $files[0]->store($folder, 'public')
+            ]);
+        }
+    }
+
+    /**
+     * Handle single file upload
+     */
+    private function handleSingleFileUpload($file, Submission $submission): void
+    {
+        $folder = $submission->category === 'PNBP'
+            ? 'submission_files/pnbp'
+            : 'submission_files/non-pnbp';
+
+        $path = $file->store($folder, 'public');
+
+        // Update atau create file record
+        SubmissionFile::updateOrCreate(
+            ['submission_id' => $submission->id],
+            [
+                'file_path' => $path,
+                'file_name' => $file->getClientOriginalName(),
+                'file_type' => $file->getClientMimeType(),
+                'file_size' => $file->getSize(),
+            ]
+        );
+
+        $submission->update(['cover_letter_path' => $path]);
     }
 }
