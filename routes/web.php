@@ -14,7 +14,7 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-// PERBAIKI ROUTE DASHBOARD INI
+// Dashboard redirect route
 Route::get('/dashboard', function () {
     if (auth()->check()) {
         if (auth()->user()->role === 'admin') {
@@ -35,7 +35,7 @@ Route::middleware('auth')->group(function () {
 Route::middleware(['auth', 'verified'])->prefix('user')->name('user.')->group(function () {
     Route::get('/dashboard', [UserController::class, 'dashboard'])->name('dashboard');
     Route::post('/submit', [UserController::class, 'submitForm'])->name('submit');
-    Route::get('/guidelines', [UserController::class, 'showGuidelines'])->name('guidelines');
+    Route::get('/guidelines', [GuidelineController::class, 'showUserGuidelines'])->name('guidelines');
     Route::post('/upload-surat', [SuratController::class, 'uploadSurat'])->name('upload-surat');
 
     Route::prefix('pembayaran')->name('pembayaran.')->group(function () {
@@ -48,12 +48,21 @@ Route::middleware(['auth', 'verified'])->prefix('user')->name('user.')->group(fu
 // Admin Routes
 Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+
+    // PERBAIKAN: Tambahkan routes untuk management pages yang hilang
+    Route::get('/manage-requests', [AdminController::class, 'manageRequests'])->name('manage.requests');
+    Route::get('/manage-payments', [AdminController::class, 'managePayments'])->name('manage.payments');
+    Route::get('/manage-users', [AdminController::class, 'manageUsers'])->name('manage.users');
+    Route::get('/manage-archive', [AdminController::class, 'manageArchive'])->name('manage.archive');
+
     Route::patch('/submission/{submission}/update-status', [AdminController::class, 'updateStatus'])->name('submission.updateStatus');
     Route::patch('/submissions/{submission}/update-payment-status', [AdminController::class, 'updatePaymentStatus'])->name('submissions.updatePaymentStatus');
 
-    Route::resource('guidelines', GuidelineController::class)->only(['index', 'store', 'update', 'destroy'])->names('guidelines');
-    // Di dalam admin routes group
+    // Guidelines management
     Route::get('/guidelines', [GuidelineController::class, 'index'])->name('guidelines.index');
+    Route::post('/guidelines', [GuidelineController::class, 'store'])->name('guidelines.store');
+    Route::patch('/guidelines/{guideline}', [GuidelineController::class, 'update'])->name('guidelines.update');
+    Route::delete('/guidelines/{guideline}', [GuidelineController::class, 'destroy'])->name('guidelines.destroy');
 
     Route::prefix('pembayaran')->name('pembayaran.')->group(function () {
         Route::get('/', [AdminPembayaranController::class, 'index'])->name('index');
@@ -65,14 +74,14 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::delete('/{id}', [AdminPembayaranController::class, 'destroy'])->name('destroy');
     });
 
-    // Pastikan archive routes ini ada di admin group
+    // Archive routes
     Route::prefix('archive')->name('archive.')->group(function () {
-        Route::get('/', [App\Http\Controllers\Admin\ArchiveController::class, 'index'])->name('index');
-        Route::get('/{id}', [App\Http\Controllers\Admin\ArchiveController::class, 'show'])->name('show');
-        Route::post('/{id}', [App\Http\Controllers\Admin\ArchiveController::class, 'archive'])->name('store');
-        Route::delete('/{id}', [App\Http\Controllers\Admin\ArchiveController::class, 'unarchive'])->name('unarchive');
-        Route::get('/{id}/download/{type}', [App\Http\Controllers\Admin\ArchiveController::class, 'downloadDocument'])->name('download');
-        Route::get('/export/data', [App\Http\Controllers\Admin\ArchiveController::class, 'exportData'])->name('export');
+        Route::get('/', [AdminController::class, 'manageArchive'])->name('index');
+        Route::get('/{id}', [AdminController::class, 'showArchiveDetail'])->name('show');
+        Route::post('/{id}', [AdminController::class, 'archiveSubmission'])->name('store');
+        Route::delete('/{id}', [AdminController::class, 'unarchiveSubmission'])->name('unarchive');
+        Route::get('/{id}/download/{type}', [AdminController::class, 'downloadArchiveDocument'])->name('download');
+        Route::get('/export/data', [AdminController::class, 'exportArchiveData'])->name('export');
     });
 });
 
